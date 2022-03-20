@@ -75,6 +75,7 @@ impl SlidingPuzzle {
         }
     }
     fn draw(&self, stdout: &mut termion::raw::RawTerminal<std::io::Stdout>) {
+
         // clear screen
         write!(
             stdout, "{}{}",
@@ -87,24 +88,28 @@ impl SlidingPuzzle {
         print!("--------------\r\n\r\n");
 
         // print board
-        const CELL_WIDTH:usize = 5;
-        for _ in 0..COLS*CELL_WIDTH+1 {
-            print!("-");
-        }
+        let sym_top = "┌────┐";
+        let sym_side = "│";
+        let sym_bottom = "└────┘";
+        
         print!("\r\n");
-        for i in 0..ROWS {
-            print!("| ");
-            for j in 0..COLS {
-                let cell = self.state[i as usize][j as usize];
-                if cell == STATE_CELL_EMPTY {
-                    print!("{:2} | ", ' ');
+        for i in 0..ROWS*3 {
+            let r = i/3;
+            for c in 0..COLS {
+                if i%3 == 0 {
+                    print!("{}", sym_top);
+                } else if i%3 == 1 {
+                    let cell = if self.state[r][c] == STATE_CELL_EMPTY {
+                        String::from(" ")
+                    } else if self.state[r][c] <= 9 {
+                        format!(" {}", self.state[r][c].to_string())
+                    } else {
+                        self.state[r][c].to_string()
+                    };
+                    print!("{}{:^4}{}", sym_side, cell, sym_side);
                 } else {
-                    print!("{:2} | ", cell);
-                }
-            }
-            print!("\r\n");
-            for _ in 0..COLS*CELL_WIDTH+1 {
-                print!("-");
+                    print!("{}", sym_bottom);
+                }   
             }
             print!("\r\n");
         }
