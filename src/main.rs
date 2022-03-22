@@ -11,23 +11,153 @@ const COLS:usize = 5;
 
 const STATE_CELL_EMPTY:u32 = 0;
 
+struct GameInputHandler {
+    stdin: std::io::Stdin,
+}
+
+struct GameOutputHandler {
+    stdout: termion::raw::RawTerminal<std::io::Stdout>,
+}
+
+impl GameInputHandler {
+    fn new(stdin: std::io::Stdin) -> GameInputHandler {
+        GameInputHandler{stdin: stdin}
+    }
+    fn handle_io_and_print(self, output_handler: &mut GameOutputHandler, game: &mut SlidingPuzzle) {
+        output_handler.draw(game);
+        for c in self.stdin.keys() {
+            output_handler.draw(game);
+            match c.unwrap() {
+                Key::Up => game.move_up(),
+                Key::Down => game.move_down(),
+                Key::Left => game.move_left(),
+                Key::Right => game.move_right(),
+                Key::Char('q') => {
+                    print!("Exiting\r\n");
+                    return;
+                },
+                _ => (),
+            }
+            output_handler.draw(game);
+        }
+    }
+}
+
+impl GameOutputHandler {
+    fn new(stdout: termion::raw::RawTerminal<std::io::Stdout>) -> GameOutputHandler {
+        GameOutputHandler{stdout: stdout}
+    }
+    fn draw(&mut self, game: &SlidingPuzzle) {
+
+        // clear screen
+        write!(
+            self.stdout, "{}{}",
+            termion::clear::All,
+            termion::cursor::Goto(1, 1),
+        ).unwrap();
+
+        // header
+        print!("Sliding Puzzle\r\n");
+        print!("--------------\r\n\r\n");
+
+        // print board
+        let sym_top = "┌────┐";
+        let sym_side = "│";
+        let sym_bottom = "└────┘";
+
+        print!("\r\n");
+        let (rows, cols) = game.get_size();
+        for i in 0..rows*3 {
+            let r = i/3;
+            for c in 0..cols {
+                if i%3 == 0 {
+                    print!("{}", sym_top);
+                } else if i%3 == 1 {
+                    let state = game.get_state(r, c);
+                    let cell = if state == STATE_CELL_EMPTY {
+                        String::from(" ")
+                    } else if state <= 9 {
+                        format!(" {}", state.to_string())
+                    } else {
+                        state.to_string()
+                    };
+                    print!("{}{:^4}{}", sym_side, cell, sym_side);
+                } else {
+                    print!("{}", sym_bottom);
+                }
+            }
+            print!("\r\n");
+        }
+
+        // footer
+        print!("\r\n");
+        print!("Usage:\r\n");
+        print!("  - Use arrow keys to slide cells\r\n");
+        print!("  - Use 'q' to quit\r\n");
+
+        self.stdout.flush().unwrap();
+    }
+}
+
+struct GameController {
+    game: SlidingPuzzle,
+    input_handler: GameInputHandler,
+    output_handler: GameOutputHandler,
+}
+impl GameController {
+    fn new() -> GameController {
+        GameController{
+            game: SlidingPuzzle::new(),
+            input_handler: GameInputHandler::new(std::io::stdin()),
+            output_handler: GameOutputHandler::new(std::io::stdout().into_raw_mode().unwrap()),
+        }
+    }
+    fn run(mut self) {
+        self.input_handler.handle_io_and_print(&mut self.output_handler, &mut self.game);
+    }
+}
+
+trait Game {
+    fn new() -> SlidingPuzzle;
+    fn get_size(&self) -> (usize, usize);
+    fn get_state(&self, r: usize, c: usize) -> u32;
+    fn shuffle(&mut self, count: usize);
+    fn move_up(&mut self);
+    fn move_left(&mut self);
+    fn move_right(&mut self);
+    fn move_down(&mut self);
+}
+
 struct SlidingPuzzle {
     state: [[u32; COLS]; ROWS],
     empty_cell: (usize, usize),
 }
 
-impl SlidingPuzzle {
-    fn new(&mut self) {
+impl Game for SlidingPuzzle {
+    fn new() -> SlidingPuzzle {
+        let mut game = SlidingPuzzle{
+            state: [[0u32; COLS as usize]; ROWS as usize],
+            empty_cell: (0, 0),
+        };
+
         for i in 0..ROWS {
             for j in 0..COLS {
-                self.state[i][j] = (i*COLS + j + 1) as u32;
+                game.state[i][j] = (i*COLS + j + 1) as u32;
             }
         }
-        self.state[ROWS-1][COLS-1] = 0;
-        self.empty_cell = (ROWS-1, COLS-1);
+        game.state[ROWS-1][COLS-1] = 0;
+        game.empty_cell = (ROWS-1, COLS-1);
 
         let shuffle_count = ROWS*COLS*ROWS*COLS;
-        self.shuffle(shuffle_count);
+        game.shuffle(shuffle_count);
+
+        game
+    }
+    fn get_size(&self) -> (usize, usize) {
+        (ROWS, COLS)
+    }
+    fn get_state(&self, r: usize, c: usize) -> u32 {
+        self.state[r][c]
     }
     fn shuffle(&mut self, count: usize) {
         let mut rng = rand::thread_rng();
@@ -74,78 +204,8 @@ impl SlidingPuzzle {
             self.empty_cell.0-=1;
         }
     }
-    fn draw(&self, stdout: &mut termion::raw::RawTerminal<std::io::Stdout>) {
-
-        // clear screen
-        write!(
-            stdout, "{}{}",
-            termion::clear::All,
-            termion::cursor::Goto(1, 1),
-        ).unwrap();
-
-        // header
-        print!("Sliding Puzzle\r\n");
-        print!("--------------\r\n\r\n");
-
-        // print board
-        let sym_top = "┌────┐";
-        let sym_side = "│";
-        let sym_bottom = "└────┘";
-        
-        print!("\r\n");
-        for i in 0..ROWS*3 {
-            let r = i/3;
-            for c in 0..COLS {
-                if i%3 == 0 {
-                    print!("{}", sym_top);
-                } else if i%3 == 1 {
-                    let cell = if self.state[r][c] == STATE_CELL_EMPTY {
-                        String::from(" ")
-                    } else if self.state[r][c] <= 9 {
-                        format!(" {}", self.state[r][c].to_string())
-                    } else {
-                        self.state[r][c].to_string()
-                    };
-                    print!("{}{:^4}{}", sym_side, cell, sym_side);
-                } else {
-                    print!("{}", sym_bottom);
-                }   
-            }
-            print!("\r\n");
-        }
-
-        // footer
-        print!("\r\n");
-        print!("Usage:\r\n");
-        print!("  - Use arrow keys to slide cells\r\n");
-        print!("  - Use 'q' to quit\r\n");
-
-        stdout.flush().unwrap();
-    }
 }
 
 fn main() {
-    let mut stdout = std::io::stdout().into_raw_mode().unwrap();
-    let stdin = std::io::stdin();
-
-    let mut game = SlidingPuzzle{
-        state: [[0u32; COLS as usize]; ROWS as usize],
-        empty_cell: (0, 0),
-    };
-    game.new();
-    game.draw(&mut stdout);
-
-    for c in stdin.keys() {
-        match c.unwrap() {
-            Key::Up => game.move_up(),
-            Key::Down => game.move_down(),
-            Key::Left => game.move_left(),
-            Key::Right => game.move_right(),
-            Key::Char('q') => {
-                return;
-            },
-            _ => (),
-        }
-        game.draw(&mut stdout);
-    }
+    GameController::new().run();
 }
