@@ -6,8 +6,8 @@ use termion::raw::IntoRawMode;
 use std::io::Write;
 use rand::Rng;
 
-const ROWS:usize = 5;
-const COLS:usize = 5;
+const ROWS:usize = 3;
+const COLS:usize = 3;
 
 const STATE_CELL_EMPTY:u32 = 0;
 
@@ -24,9 +24,8 @@ impl GameInputHandler {
         GameInputHandler{stdin: stdin}
     }
     fn handle_io_and_print(self, output_handler: &mut GameOutputHandler, game: &mut SlidingPuzzle) {
-        output_handler.draw(game);
+        output_handler.draw(game, game.is_complete());
         for c in self.stdin.keys() {
-            output_handler.draw(game);
             match c.unwrap() {
                 Key::Up => game.move_up(),
                 Key::Down => game.move_down(),
@@ -38,7 +37,7 @@ impl GameInputHandler {
                 },
                 _ => (),
             }
-            output_handler.draw(game);
+            output_handler.draw(game, game.is_complete());
         }
     }
 }
@@ -47,7 +46,7 @@ impl GameOutputHandler {
     fn new(stdout: termion::raw::RawTerminal<std::io::Stdout>) -> GameOutputHandler {
         GameOutputHandler{stdout: stdout}
     }
-    fn draw(&mut self, game: &SlidingPuzzle) {
+    fn draw(&mut self, game: &SlidingPuzzle, won: bool) {
 
         // clear screen
         write!(
@@ -57,8 +56,8 @@ impl GameOutputHandler {
         ).unwrap();
 
         // header
-        print!("Sliding Puzzle\r\n");
-        print!("--------------\r\n\r\n");
+        print!("Sliding Puzzle [Experimental]\r\n");
+        print!("-----------------------------\r\n\r\n");
 
         // print board
         let sym_top = "┌────┐";
@@ -87,6 +86,10 @@ impl GameOutputHandler {
                 }
             }
             print!("\r\n");
+        }
+
+        if won {
+            print!("Puzzle Solved! Good game.\r\n");
         }
 
         // footer
@@ -126,6 +129,7 @@ trait Game {
     fn move_left(&mut self);
     fn move_right(&mut self);
     fn move_down(&mut self);
+    fn is_complete(&self) -> bool;
 }
 
 struct SlidingPuzzle {
@@ -203,6 +207,17 @@ impl Game for SlidingPuzzle {
             self.state[empty_r-1][empty_c] = STATE_CELL_EMPTY;
             self.empty_cell.0-=1;
         }
+    }
+
+    fn is_complete(&self) -> bool {
+        for i in 0..ROWS {
+            for j in 0..COLS {
+                if self.state[i][j]!=STATE_CELL_EMPTY && self.state[i][j] != (i*COLS + j + 1) as u32 {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
