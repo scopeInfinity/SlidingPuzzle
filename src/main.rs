@@ -20,7 +20,7 @@ struct GameOutputHandler {
 
 impl GameInputHandler {
     fn new(stdin: std::io::Stdin) -> GameInputHandler {
-        GameInputHandler { stdin: stdin }
+        GameInputHandler { stdin }
     }
     fn handle_io_and_print(self, output_handler: &mut GameOutputHandler, game: &mut SlidingPuzzle) {
         output_handler.draw(game, game.is_complete());
@@ -43,7 +43,7 @@ impl GameInputHandler {
 
 impl GameOutputHandler {
     fn new(stdout: termion::raw::RawTerminal<std::io::Stdout>) -> GameOutputHandler {
-        GameOutputHandler { stdout: stdout }
+        GameOutputHandler { stdout }
     }
     fn draw(&mut self, game: &SlidingPuzzle, won: bool) {
         // clear screen
@@ -76,7 +76,7 @@ impl GameOutputHandler {
                     let cell = if state == STATE_CELL_EMPTY {
                         String::from(" ")
                     } else if state <= 9 {
-                        format!(" {}", state.to_string())
+                        format!(" {}", state)
                     } else {
                         state.to_string()
                     };
@@ -120,25 +120,12 @@ impl GameController {
             .handle_io_and_print(&mut self.output_handler, &mut self.game);
     }
 }
-
-trait Game {
-    fn new() -> SlidingPuzzle;
-    fn get_size(&self) -> (usize, usize);
-    fn get_state(&self, r: usize, c: usize) -> u32;
-    fn shuffle(&mut self, count: usize);
-    fn move_up(&mut self);
-    fn move_left(&mut self);
-    fn move_right(&mut self);
-    fn move_down(&mut self);
-    fn is_complete(&self) -> bool;
-}
-
 struct SlidingPuzzle {
     state: [[u32; COLS]; ROWS],
     empty_cell: (usize, usize),
 }
 
-impl Game for SlidingPuzzle {
+impl SlidingPuzzle {
     fn new() -> SlidingPuzzle {
         let mut game = SlidingPuzzle {
             state: [[0u32; COLS as usize]; ROWS as usize],
